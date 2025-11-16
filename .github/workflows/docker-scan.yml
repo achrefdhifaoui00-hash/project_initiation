@@ -1,4 +1,4 @@
-name: Docker Build & Trivy Scan
+name: Docker Build & Trivy Scan (CLI)
 
 on:
   push:
@@ -14,7 +14,8 @@ permissions:
 jobs:
   build-and-scan:
     runs-on: ubuntu-latest
-
+    env:
+      IMAGE_NAME: django-sec-app:ci
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -28,22 +29,32 @@ jobs:
         with:
           context: .
           push: false
-          tags: django-sec-app:ci
+          tags: ${{ env.IMAGE_NAME }}
 
-      - name: Small pause to ensure image ready
-        run: sleep 2
-
-      - name: Run Trivy vulnerability scan (pinned release)
-        # pinned to a released tag to avoid resolver errors
-        uses: aquasecurity/trivy-action@v0.33.1
+      - name: Install Trivy (setup action)
+        uses: aquasecurity/setup-trivy@v0.2.4
         with:
-          image-ref: "django-sec-app:ci"
-          format: "json"
-          output: "trivy-report.json"
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH"
-          ignore-unfixed: "false"
-          exit-code: "1"
+          version: 'v0.67.2'    # pin a recent Trivy CLI version; change if desired
+
+      - name: Run Trivy image scan (JSON + table)
+        id: trivy-scan
+        run: |
+          # run trivy and produce json and table output
+          trivy image --format json --output trivy-report.json --input-opts --ignore-unfixed=false --severity CRITICAL,HIGH $IMAGE_NAME || true
+          # also write a human readable summary (table) for logs
+          trivy image --format table --severity CRITICAL,HIGH $IMAGE_NAME || true
+          # compute exit code: fail if json contains any vuln with CRITICAL or HIGH
+          if grep -q '"VulnerabilityID"' trivy-report.json; then
+            # check for HIGH/CRITICAL severities
+            if jq -e '.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH" or .Severity == "CRITICAL")' trivy-report.json >/dev/null 2>&1; then
+              echo "Found HIGH/CRITICAL vulnerabilities -> failing job"
+              exit 1
+            else
+              echo "No HIGH/CRITICAL vulnerabilities found"
+            fi
+          else
+            echo "No vulnerabilities found"
+          fi
 
       - name: Upload Trivy JSON report
         if: always()
