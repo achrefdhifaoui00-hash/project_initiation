@@ -1,7 +1,7 @@
 # -----------------------------
 # 1) Base Image
 # -----------------------------
-FROM python:3.11-slim
+FROM python:3.7-slim
 
 # Prevents Python from writing .pyc files
 ENV PYTHONDONTWRITEBYTECODE 1
