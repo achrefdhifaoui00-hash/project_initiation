@@ -32,7 +32,7 @@ jobs:
           tags: django-sec-app:ci
 
       - name: Run Trivy vulnerability scan (table + json artifact)
-        uses: aquasecurity/trivy-action@v1
+        uses: aquasecurity/trivy-action@v0
         with:
           image-ref: 'django-sec-app:ci'
           format: 'json'
