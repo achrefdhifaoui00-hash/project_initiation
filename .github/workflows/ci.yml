@@ -1,0 +1,60 @@
+name: CI - Django Build & Test
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Django checks + migrations (no DB persistence)
+        env:
+          DJANGO_SUPERUSER_USERNAME: ci
+          DJANGO_SUPERUSER_EMAIL: ci@example.com
+          DJANGO_SUPERUSER_PASSWORD: ci_password
+        run: |
+          # ensure settings can be imported and minimal checks pass
+          python manage.py check
+          # apply migrations on the ephemeral sqlite DB used in CI
+          python manage.py migrate --noinput
+
+      - name: Collect static (safe for CI)
+        run: |
+          python manage.py collectstatic --noinput || echo "collectstatic returned non-zero (ok if staticfiles not configured)"
+
+      - name: Run tests
+        run: |
+          # Django will exit 0 if no tests exist; this runs the test suite if present
+          python manage.py test --verbosity=2
+
+      - name: Upload test logs (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: django-ci-logs
+          path: |
+            ./logs || ./reports || ./coverage || ./test-results || .
