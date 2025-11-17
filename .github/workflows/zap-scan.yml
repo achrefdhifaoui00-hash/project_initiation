@@ -25,6 +25,7 @@ jobs:
       - name: Start Django container
         run: |
           docker run -d --name django-app -p 8000:8000 django-sec-app
+          echo "Waiting for Django server..."
           sleep 10
 
       - name: Verify Django is running
@@ -33,18 +34,25 @@ jobs:
 
       - name: Run OWASP ZAP Baseline Scan (Docker)
         run: |
+          # create local folder that will be mounted into the ZAP container
+          mkdir -p "$PWD/zap_output"
+
+          # pull the official ZAP image from GHCR
           docker pull ghcr.io/zaproxy/zaproxy:stable
+
+          # run ZAP, mount the runner folder at /zap/wrk (required by zap-baseline.py)
           docker run --name zapscan --network="host" \
+            -v "$PWD/zap_output":/zap/wrk \
             ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
               -t http://localhost:8000 \
-              -r /zap/zap_report.html \
+              -r /zap/wrk/zap_report.html \
               -a
 
-          # Copy the report out of the container
-          docker cp zapscan:/zap/zap_report.html ./zap_report.html
+          # list produced files so they appear in the job logs
+          ls -la "$PWD/zap_output"
 
       - name: Upload ZAP report
         uses: actions/upload-artifact@v4
         with:
           name: zap-report
-          path: zap_report.html
+          path: zap_output/zap_report.html
