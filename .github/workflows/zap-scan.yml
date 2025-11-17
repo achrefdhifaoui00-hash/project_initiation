@@ -42,46 +42,42 @@ jobs:
           echo "App did not start in time"
           exit 1
 
-      - name: Prepare host output folder (for ZAP)
+      - name: Prepare output directory
         run: |
-          mkdir -p "$PWD/zap_output/wrk"
-          chmod -R 0777 "$PWD/zap_output"
+          mkdir -p zap_output/wrk
+          chmod -R 777 zap_output
 
-      - name: Login to GitHub Container Registry (ghcr.io)
+      - name: Login to GHCR
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull & run ZAP baseline (container)
+      - name: Pull & run ZAP Baseline Scan
         run: |
-          # pull the correct baseline image that includes zap-baseline.py
-          docker pull ghcr.io/zaproxy/zap-baseline:stable
+          docker pull ghcr.io/zaproxy/zaproxy:stable
 
-          # run the baseline scanner; write report to /zap/wrk/zap_report.html
-          docker run --rm --name zapscan --network="host" \
-            -v "$PWD/zap_output":/zap \
-            ghcr.io/zaproxy/zap-baseline:stable \
-            /bin/bash -lc "python3 /zap/zap-baseline.py -t http://localhost:8000 -r /zap/wrk/zap_report.html -a" || true
+          docker run --rm --network host \
+            -v "$PWD/zap_output:/zap/wrk" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+              -t http://localhost:8000 \
+              -r zap_report.html \
+              -a
 
-          # debug: list produced files so we can see where the report is
-          echo "========= LIST /zap_output ========="
-          ls -la "$PWD/zap_output" || true
-          echo "========= LIST /zap_output/wrk ========="
-          ls -la "$PWD/zap_output/wrk" || true
-          echo "========= FIND (recursive) ========="
-          find "$PWD/zap_output" -type f -maxdepth 5 -print || true
+          echo "========= OUTPUT FILES ========="
+          ls -la zap_output || true
+          ls -la zap_output/wrk || true
 
-      - name: Upload ZAP report (if present)
+      - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
         with:
           name: zap-report
           path: |
-            zap_output/wrk/zap_report.html
             zap_output/zap_report.html
+            zap_output/wrk/zap_report.html
 
-      - name: Tear down Django container
+      - name: Stop Django container
         if: always()
-        run: |
-          docker rm -f django-app || true
+        run: docker rm -f django-app || true
