@@ -117,18 +117,20 @@ X_FRAME_OPTIONS = 'DENY'
 SECURE_REFERRER_POLICY = "no-referrer-when-downgrade"
 
 # HSTS - enable only when serving over HTTPS in production
-if not DEBUG:
-    SECURE_HSTS_SECONDS = 31536000  # 1 year
+USE_HTTPS = os.environ.get("DJANGO_HTTPS", "1") == "1"
+
+if USE_HTTPS:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    SECURE_SSL_REDIRECT = True
 else:
-    # In DEBUG, don't redirect to HTTPS to avoid breaking local dev
+    SECURE_SSL_REDIRECT = False
     SECURE_HSTS_SECONDS = 0
     SECURE_HSTS_INCLUDE_SUBDOMAINS = False
     SECURE_HSTS_PRELOAD = False
-    SECURE_SSL_REDIRECT = False
 
+    # In DEBUG, don't redirect to HTT
 # Custom security-related flags (optional tuning)
 # For dev, you can disable strict checks using DJANGO_DEBUG env var
 

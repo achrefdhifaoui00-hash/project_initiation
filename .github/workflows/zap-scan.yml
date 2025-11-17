@@ -23,6 +23,9 @@ jobs:
         run: |
           docker build -t django-sec-app .
 
+      - name: Disable HTTPS for CI (ZAP needs HTTP)
+        run: echo "DJANGO_HTTPS=0" >> $GITHUB_ENV
+
       - name: Start Django container
         run: |
           docker run -d --name django-app -p 8000:8000 django-sec-app
