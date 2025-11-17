@@ -33,14 +33,11 @@ jobs:
 
       - name: Run OWASP ZAP Baseline Scan (Docker)
         run: |
-          # prepare a host folder and the mandatory 'wrk' subfolder with writable perms
           mkdir -p "$PWD/zap_output/wrk"
           chmod -R 0777 "$PWD/zap_output"
 
-          # pull the official zap image from GHCR
           docker pull ghcr.io/zaproxy/zaproxy:stable
 
-          # run ZAP and mount the host folder at /zap (so /zap/wrk will be available inside)
           docker run --name zapscan --network="host" \
             -v "$PWD/zap_output":/zap \
             ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
@@ -48,10 +45,14 @@ jobs:
               -r /zap/wrk/zap_report.html \
               -a || true
 
-          # show produced files (helps debug)
-          echo "Listing zap_output and zap_output/wrk:"
-          ls -la "$PWD/zap_output" || true
-          ls -la "$PWD/zap_output/wrk" || true
+          echo "========= LIST /zap_output ========="
+          ls -la "$PWD/zap_output"
+
+          echo "========= LIST /zap_output/wrk ========="
+          ls -la "$PWD/zap_output/wrk"
+
+          echo "========= LIST /zap_output (recursive) ========="
+          find "$PWD/zap_output"
 
       - name: Upload ZAP report (if present)
         uses: actions/upload-artifact@v4
