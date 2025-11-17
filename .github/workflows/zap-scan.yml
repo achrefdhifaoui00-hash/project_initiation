@@ -14,6 +14,9 @@ permissions:
 jobs:
   zap-scan:
     runs-on: ubuntu-latest
+    env:
+      # keep the default; will be overridden in workflow step for CI
+      DJANGO_HTTPS: "1"
 
     steps:
       - name: Checkout repository
@@ -23,65 +26,69 @@ jobs:
         run: |
           docker build -t django-sec-app .
 
-      # <<< ADDED: disable HTTPS redirect in Django for CI so ZAP can use HTTP >>>
-      - name: Disable HTTPS for CI (ZAP needs HTTP)
+      # Disable HTTPS in CI so the scan can use HTTP (settings.py reads DJANGO_HTTPS)
+      - name: Disable HTTPS for CI (ZAP uses HTTP)
         run: echo "DJANGO_HTTPS=0" >> $GITHUB_ENV
 
       - name: Start Django container
         run: |
           docker run -d --name django-app -p 8000:8000 django-sec-app
-          echo "Waiting for Django server..."
+          echo "Waiting a bit for Django to start..."
           sleep 10
 
-      - name: Verify Django is running
+      - name: Verify Django is running (http)
         run: |
-          for i in {1..10}; do
-            if curl -sSf http://localhost:8000 >/dev/null; then
-              echo "App is ready!"
+          for i in $(seq 1 12); do
+            if curl -sSf http://localhost:8000 >/dev/null 2>&1; then
+              echo "Django is up"
               exit 0
             fi
-            echo "Waiting for Django..."
+            echo "Waiting for Django ($i/12)..."
             sleep 3
           done
-          echo "App did not start in time"
+          echo "Django did not start in time"
           exit 1
 
-      - name: Prepare output directory
+      - name: Prepare host output directory for ZAP
         run: |
           mkdir -p zap_output/wrk
-          chmod -R 777 zap_output
+          chmod -R 0777 zap_output || true
 
-      - name: Login to GHCR
+      - name: Login to GHCR (so we can pull zap image)
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull & run ZAP Baseline Scan
+      - name: Pull & run ZAP Baseline Scan (explicit reports)
         run: |
+          # pull official ZAP image
           docker pull ghcr.io/zaproxy/zaproxy:stable
 
+          # run baseline scanner and write reports to /zap/wrk (which is mounted to zap_output)
           docker run --rm --network host \
             -v "$PWD/zap_output:/zap/wrk" \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
               -t http://localhost:8000 \
               -r zap_report.html \
+              -x zap_report.xml \
+              -J zap_report.json \
               -a || true
 
-          echo "========= OUTPUT FILES ========="
+          echo "===== produced files ====="
           ls -la zap_output || true
           ls -la zap_output/wrk || true
-          find zap_output -type f -maxdepth 5 -print || true
+          find zap_output -maxdepth 5 -type f -print || true
 
-      - name: Upload ZAP Report
+      - name: Upload ZAP report and output
         uses: actions/upload-artifact@v4
         with:
           name: zap-report
           path: |
-            zap_output/zap_report.html
-            zap_output/wrk/zap_report.html
+            zap_output/**
+            zap_output/wrk/**
 
       - name: Stop Django container
         if: always()
