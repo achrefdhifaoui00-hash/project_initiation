@@ -1,0 +1,40 @@
+name: Secret scanning (Gitleaks)
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks-scan:
+    name: Gitleaks scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks (detect secrets)
+        uses: zricethezav/gitleaks-action@v2
+        id: gitleaks
+        with:
+          args: '--redact --format json --report-path gitleaks-report.json'
+
+      - name: Upload Gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+
+      - name: Fail job if leaks found
+        if: steps.gitleaks.outputs.exit_code != '' && steps.gitleaks.outputs.exit_code != '0'
+        run: |
+          echo "Gitleaks detected potential secrets. Download artifact 'gitleaks-report' for details."
+          exit 1
