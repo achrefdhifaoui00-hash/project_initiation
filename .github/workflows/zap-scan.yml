@@ -33,26 +33,28 @@ jobs:
 
       - name: Run OWASP ZAP Baseline Scan (Docker)
         run: |
+          # prepare host folder and writable wrk
           mkdir -p "$PWD/zap_output/wrk"
           chmod -R 0777 "$PWD/zap_output"
 
+          # pull image
           docker pull ghcr.io/zaproxy/zaproxy:stable
 
+          # run ZAP baseline explicitly via python3 calling the absolute script path,
+          # write report to /zap/wrk/zap_report.html (mounted to $PWD/zap_output/wrk)
           docker run --name zapscan --network="host" \
             -v "$PWD/zap_output":/zap \
-            ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
-              -t http://localhost:8000 \
-              -r /zap/wrk/zap_report.html \
-              -a || true
+            ghcr.io/zaproxy/zaproxy:stable \
+            /bin/bash -lc "python3 /zap/zap-baseline.py -t http://localhost:8000 -r /zap/wrk/zap_report.html -a" || true
 
+          # show produced files (debug)
           echo "========= LIST /zap_output ========="
-          ls -la "$PWD/zap_output"
-
+          ls -la "$PWD/zap_output" || true
           echo "========= LIST /zap_output/wrk ========="
-          ls -la "$PWD/zap_output/wrk"
+          ls -la "$PWD/zap_output/wrk" || true
+          echo "========= FIND (recursive) ========="
+          find "$PWD/zap_output" -maxdepth 4 -type f -print || true
 
-          echo "========= LIST /zap_output (recursive) ========="
-          find "$PWD/zap_output"
 
       - name: Upload ZAP report (if present)
         uses: actions/upload-artifact@v4
