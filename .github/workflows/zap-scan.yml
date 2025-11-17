@@ -25,7 +25,6 @@ jobs:
       - name: Start Django container
         run: |
           docker run -d --name django-app -p 8000:8000 django-sec-app
-          echo "Waiting for Django server..."
           sleep 10
 
       - name: Verify Django is running
@@ -38,10 +37,10 @@ jobs:
           docker run --name zapscan --network="host" \
             ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
               -t http://localhost:8000 \
-              -r zap_report.html \
+              -r /zap/zap_report.html \
               -a
 
-          # Copy report from container to workspace
+          # Copy the report out of the container
           docker cp zapscan:/zap/zap_report.html ./zap_report.html
 
       - name: Upload ZAP report
