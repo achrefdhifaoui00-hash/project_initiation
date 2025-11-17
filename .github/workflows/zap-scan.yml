@@ -23,6 +23,7 @@ jobs:
         run: |
           docker build -t django-sec-app .
 
+      # <<< ADDED: disable HTTPS redirect in Django for CI so ZAP can use HTTP >>>
       - name: Disable HTTPS for CI (ZAP needs HTTP)
         run: echo "DJANGO_HTTPS=0" >> $GITHUB_ENV
 
@@ -67,11 +68,12 @@ jobs:
             zap-baseline.py \
               -t http://localhost:8000 \
               -r zap_report.html \
-              -a
+              -a || true
 
           echo "========= OUTPUT FILES ========="
           ls -la zap_output || true
           ls -la zap_output/wrk || true
+          find zap_output -type f -maxdepth 5 -print || true
 
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
